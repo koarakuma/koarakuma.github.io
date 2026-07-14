@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>SweatPet — Keep your pet alive. Build your gym routine.</title>
+<meta name="description" content="A virtual pet that only thrives when you go to the CRC. Apply for the closed beta at Georgia Tech.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg:        '#FBF8FF',
+          ink:       '#251A3C',
+          purple:    '#7C5CFC',
+          purpledark:'#5B3DE0',
+          purplesoft:'#EEE7FF',
+          mint:      '#33C795',
+          coral:     '#FF7A66',
+          gold:      '#FFC248',
+          card:      '#FFFFFF',
+        },
+        fontFamily: {
+          display: ['Fredoka', 'sans-serif'],
+          body: ['Plus Jakarta Sans', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+        borderRadius: {
+          blob: '42% 58% 65% 35% / 45% 40% 60% 55%',
+        }
+      }
+    }
+  }
+</script>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: #FBF8FF; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  @keyframes floaty { 0%,100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-14px) rotate(2deg); } }
+  @keyframes floatySlow { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-22px); } }
+  @keyframes bob { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.02); } }
+  @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes riseFade { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+  @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+  @keyframes wiggle { 0%,100% { transform: rotate(-1.5deg); } 50% { transform: rotate(1.5deg); } }
+  @keyframes barShimmer { 0% { background-position: -80px 0; } 100% { background-position: 160px 0; } }
+
+  .anim-float { animation: floaty 6s ease-in-out infinite; }
+  .anim-float-slow { animation: floatySlow 8s ease-in-out infinite; }
+  .anim-bob { animation: bob 3.2s ease-in-out infinite; }
+  .anim-blink { animation: blink 4.5s infinite; transform-origin: center; }
+  .anim-wiggle { animation: wiggle 4s ease-in-out infinite; transform-origin: bottom center; }
+
+  .pet-bounce { animation: bob 0.5s ease-in-out 2; }
+
+  .stat-bar-fill { transition: width 0.9s cubic-bezier(.34,1.56,.64,1); }
+
+  .xp-float {
+    position: absolute;
+    animation: riseFade 1.1s ease-out forwards;
+    font-family: 'JetBrains Mono', monospace;
+    pointer-events: none;
+  }
+
+  .chip-scale {
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+  }
+  .chip-scale:active { transform: scale(0.95); }
+
+  .modal-panel { animation: popIn 0.28s cubic-bezier(.34,1.56,.64,1); }
+
+  input:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 3px solid #7C5CFC;
+    outline-offset: 2px;
+  }
+
+  .dashed-frame {
+    background-image: repeating-linear-gradient(0deg, #C9B8FF, #C9B8FF 8px, transparent 8px, transparent 16px),
+      repeating-linear-gradient(90deg, #C9B8FF, #C9B8FF 8px, transparent 8px, transparent 16px),
+      repeating-linear-gradient(180deg, #C9B8FF, #C9B8FF 8px, transparent 8px, transparent 16px),
+      repeating-linear-gradient(270deg, #C9B8FF, #C9B8FF 8px, transparent 8px, transparent 16px);
+    background-size: 2px 100%, 100% 2px, 2px 100%, 100% 2px;
+    background-position: 0 0, 0 0, 100% 0, 0 100%;
+    background-repeat: no-repeat;
+  }
+
+  .grain {
+    background-image: radial-gradient(#251A3C 0.6px, transparent 0.6px);
+    background-size: 14px 14px;
+  }
+</style>
+</head>
+<body class="text-ink antialiased overflow-x-hidden">
+
+<!-- ================= NAV ================= -->
+<header class="relative z-30">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-ink flex items-center justify-center">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C7 2 4 6 4 10.5C4 15 6.5 18 6.5 20.5C6.5 21.5 7.3 22 8.2 22C9 22 9.5 21.3 9.7 20.5L10.2 18.5C10.6 18.6 11.3 18.7 12 18.7C12.7 18.7 13.4 18.6 13.8 18.5L14.3 20.5C14.5 21.3 15 22 15.8 22C16.7 22 17.5 21.5 17.5 20.5C17.5 18 20 15 20 10.5C20 6 17 2 12 2Z" fill="#FBF8FF"/>
+          <circle cx="9.3" cy="10.5" r="1.2" fill="#251A3C"/>
+          <circle cx="14.7" cy="10.5" r="1.2" fill="#251A3C"/>
+          <path d="M11 12.5C11 13 11.4 13.4 12 13.4C12.6 13.4 13 13 13 12.5" stroke="#FF7A66" stroke-width="1.3" stroke-linecap="round" fill="#FF7A66"/>
+        </svg>
+      </div>
+      <span class="font-display font-700 text-xl tracking-tight">SweatPet</span>
+    </div>
+    <button onclick="openModal()" class="hidden sm:inline-flex items-center gap-2 bg-ink text-bg font-body font-semibold text-sm px-5 py-2.5 rounded-full hover:bg-purpledark transition-colors">
+      Apply for the Beta
+      <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+    </button>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="relative max-w-7xl mx-auto px-5 sm:px-8 pt-8 sm:pt-14 pb-20 sm:pb-28">
+
+  <!-- decorative blobs -->
+  <div class="pointer-events-none absolute -top-10 -left-16 w-72 h-72 bg-purplesoft rounded-blob blur-0 opacity-70 anim-float-slow"></div>
+  <div class="pointer-events-none absolute top-40 right-0 w-56 h-56 bg-gold/20 rounded-blob anim-float"></div>
+
+  <div class="relative grid lg:grid-cols-2 gap-14 items-center">
+    <div>
+      <span class="inline-flex items-center gap-2 bg-purplesoft text-purpledark font-mono text-xs font-semibold tracking-wide uppercase px-3.5 py-1.5 rounded-full">
+        <span class="w-1.5 h-1.5 rounded-full bg-mint"></span>
+        Built at Georgia Tech · Closed beta
+      </span>
+
+      <h1 class="font-display font-700 text-[2.6rem] leading-[1.05] sm:text-6xl sm:leading-[1.02] mt-6 tracking-tight">
+        Keep your pet alive.
+        <span class="block text-purple">Build your gym routine.</span>
+      </h1>
+
+      <p class="mt-6 text-lg text-ink/70 max-w-md leading-relaxed">
+        SweatPet only levels up when you show up. Log real workouts at the CRC to feed, clean, and play with your buddy — and turn the most intimidating building on campus into the one you actually want to walk into.
+      </p>
+
+      <div class="mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <button onclick="openModal()" class="group inline-flex items-center gap-2 bg-purple text-white font-body font-bold px-7 py-4 rounded-full hover:bg-purpledark transition-all shadow-[0_8px_0_0_#5B3DE0] active:shadow-[0_2px_0_0_#5B3DE0] active:translate-y-1.5">
+          Apply for the Closed Beta
+          <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+        </button>
+        <p class="text-sm text-ink/50 leading-tight max-w-[220px]">
+          Georgia Tech students only. First cohort capped near 50 testers.
+        </p>
+      </div>
+    </div>
+
+    <!-- Screenshot placeholder "device" -->
+    <div class="relative flex justify-center lg:justify-end">
+      <div class="anim-float-slow relative">
+        <div class="w-[270px] sm:w-[300px] rounded-[2.7rem] bg-ink p-3 shadow-2xl">
+          <div class="rounded-[2.1rem] overflow-hidden bg-purplesoft dashed-frame relative h-[540px] flex flex-col">
+            <!-- fake status bar -->
+            <div class="flex items-center justify-between px-5 pt-4 text-[11px] font-mono text-ink/40">
+              <span>9:41</span>
+              <span>●●●</span>
+            </div>
+
+            <div class="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-white/70 flex items-center justify-center">
+                <i data-lucide="image" class="w-6 h-6 text-purple/50"></i>
+              </div>
+              <p class="font-display text-base text-purple/70">App screenshot goes here</p>
+              <p class="text-xs text-ink/40 max-w-[170px]">Swap this frame for a real screen of SweatPet's habitat, stats, or quest log</p>
+            </div>
+
+            <!-- mock stat pills -->
+            <div class="px-5 pb-6 flex gap-2">
+              <div class="flex-1 bg-white/80 rounded-xl px-3 py-2">
+                <p class="font-mono text-[10px] text-ink/40">HP</p>
+                <div class="h-1.5 rounded-full bg-ink/10 mt-1 overflow-hidden"><div class="h-full w-4/5 bg-mint rounded-full"></div></div>
+              </div>
+              <div class="flex-1 bg-white/80 rounded-xl px-3 py-2">
+                <p class="font-mono text-[10px] text-ink/40">XP</p>
+                <div class="h-1.5 rounded-full bg-ink/10 mt-1 overflow-hidden"><div class="h-full w-3/5 bg-gold rounded-full"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- floating badge -->
+        <div class="hidden sm:flex absolute -left-14 top-16 anim-float bg-white rounded-2xl shadow-xl px-4 py-3 items-center gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-coral/15 flex items-center justify-center">
+            <i data-lucide="flame" class="w-4 h-4 text-coral"></i>
+          </div>
+          <div>
+            <p class="font-mono text-[11px] text-ink/40 leading-none">STREAK</p>
+            <p class="font-display font-600 text-sm">6 days</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= INTERACTIVE DEMO (signature element) ================= -->
+<section class="relative bg-ink text-bg py-20 sm:py-28 overflow-hidden">
+  <div class="pointer-events-none absolute top-10 left-10 w-64 h-64 bg-purple/20 rounded-blob blur-2xl"></div>
+  <div class="pointer-events-none absolute bottom-0 right-10 w-72 h-72 bg-mint/10 rounded-blob blur-2xl"></div>
+
+  <div class="relative max-w-5xl mx-auto px-5 sm:px-8">
+    <div class="text-center max-w-xl mx-auto mb-14">
+      <span class="font-mono text-xs uppercase tracking-widest text-mint">This is SweatPet</span>
+      <h2 class="font-display font-700 text-3xl sm:text-4xl mt-3 leading-tight">
+        Every rep turns into something SweatPet can feel.
+      </h2>
+      <p class="text-bg/60 mt-4">No account needed — try the check-in mechanic right here.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-[220px_1fr] gap-10 sm:gap-12 items-center bg-white/5 border border-white/10 rounded-[2rem] p-6 sm:p-10 backdrop-blur">
+
+      <!-- pet avatar -->
+      <div class="relative flex justify-center">
+        <div id="petWrap" class="anim-bob relative">
+          <svg id="petSvg" width="150" height="160" viewBox="0 0 150 160" fill="none">
+            <ellipse cx="75" cy="150" rx="34" ry="6" fill="black" opacity="0.15"/>
+            <path d="M75 12C40 12 22 44 22 82C22 118 42 148 42 148L58 148L60 118C64 120 70 121 75 121C80 121 86 120 90 118L92 148L108 148C108 148 128 118 128 82C128 44 110 12 75 12Z" fill="#F5F5F7"/>
+            <path d="M75 20C44 20 30 48 30 82C30 106 40 128 46 138C46 138 55 133 75 133C95 133 104 138 104 138C110 128 120 106 120 82C120 48 106 20 75 20Z" fill="#251A3C"/>
+            <ellipse cx="75" cy="88" rx="30" ry="38" fill="#F5F5F7"/>
+            <g class="anim-blink">
+              <circle cx="63" cy="76" r="7" fill="#251A3C"/>
+              <circle cx="87" cy="76" r="7" fill="#251A3C"/>
+              <circle cx="65.5" cy="73.5" r="2" fill="white"/>
+              <circle cx="89.5" cy="73.5" r="2" fill="white"/>
+            </g>
+            <ellipse cx="52" cy="90" rx="6" ry="4" fill="#FF7A66" opacity="0.5"/>
+            <ellipse cx="98" cy="90" rx="6" ry="4" fill="#FF7A66" opacity="0.5"/>
+            <path d="M68 92C68 92 71 96 75 96C79 96 82 92 82 92" stroke="#FFC248" stroke-width="6" stroke-linecap="round" fill="#FFC248"/>
+            <path d="M20 88C14 92 10 100 12 108C22 104 28 96 28 90" fill="#251A3C" class="anim-wiggle"/>
+            <path d="M130 88C136 92 140 100 138 108C128 104 122 96 122 90" fill="#251A3C" class="anim-wiggle"/>
+            <path d="M56 148C56 148 56 154 62 154C68 154 68 148 68 148" stroke="#FFC248" stroke-width="4" stroke-linecap="round"/>
+            <path d="M82 148C82 148 82 154 88 154C94 154 94 148 94 148" stroke="#FFC248" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- stats + action -->
+      <div>
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="font-display font-600 text-lg">SweatPet</p>
+            <p class="font-mono text-xs text-bg/40">Emperor penguin · Lv. <span id="lvlNum">3</span></p>
+          </div>
+          <div class="text-right">
+            <p class="font-mono text-xs text-bg/40">STREAK</p>
+            <p class="font-mono font-bold text-mint" id="streakNum">3 days</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between font-mono text-xs mb-1.5"><span class="text-bg/50">HAPPINESS</span><span id="happyPct">40%</span></div>
+            <div class="h-3 rounded-full bg-white/10 overflow-hidden"><div id="happyBar" class="h-full bg-coral rounded-full stat-bar-fill" style="width:40%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between font-mono text-xs mb-1.5"><span class="text-bg/50">FULLNESS</span><span id="hungerPct">55%</span></div>
+            <div class="h-3 rounded-full bg-white/10 overflow-hidden"><div id="hungerBar" class="h-full bg-gold rounded-full stat-bar-fill" style="width:55%"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between font-mono text-xs mb-1.5"><span class="text-bg/50">ENERGY</span><span id="energyPct">35%</span></div>
+            <div class="h-3 rounded-full bg-white/10 overflow-hidden"><div id="energyBar" class="h-full bg-mint rounded-full stat-bar-fill" style="width:35%"></div></div>
+          </div>
+        </div>
+
+        <div class="relative mt-7">
+          <button id="checkinBtn" onclick="logCheckIn()" class="relative w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-mint text-ink font-bold px-6 py-3.5 rounded-full hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            <i data-lucide="dumbbell" class="w-4 h-4"></i>
+            <span id="checkinLabel">Log a CRC check-in</span>
+          </button>
+          <p class="font-mono text-[11px] text-bg/30 mt-3">Simulated for demo purposes — the real app checks in via campus wifi + a manual confirm.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<section id="features" class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-28">
+  <div class="max-w-xl mb-14">
+    <span class="font-mono text-xs uppercase tracking-widest text-purple">Why SweatPet works</span>
+    <h2 class="font-display font-700 text-3xl sm:text-4xl mt-3 leading-tight">
+      Built to outsmart your gym anxiety, not just track your workouts.
+    </h2>
+  </div>
+
+  <div class="grid sm:grid-cols-3 gap-6">
+    <div class="bg-card rounded-3xl p-7 border border-ink/5 hover:border-purple/30 hover:-translate-y-1 transition-all">
+      <div class="w-12 h-12 rounded-2xl bg-purplesoft flex items-center justify-center mb-5">
+        <i data-lucide="dumbbell" class="w-5.5 h-5.5 text-purple"></i>
+      </div>
+      <h3 class="font-display font-600 text-xl mb-2.5">Gym to Earn</h3>
+      <p class="text-ink/60 leading-relaxed text-[15px]">Check in at the CRC and SweatPet knows. Real reps convert straight into food, toys, and habitat upgrades — no cap, no cheating, no faking a set from your dorm room.</p>
+    </div>
+
+    <div class="bg-card rounded-3xl p-7 border border-ink/5 hover:border-coral/30 hover:-translate-y-1 transition-all">
+      <div class="w-12 h-12 rounded-2xl bg-coral/10 flex items-center justify-center mb-5">
+        <i data-lucide="heart-handshake" class="w-5.5 h-5.5 text-coral"></i>
+      </div>
+      <h3 class="font-display font-600 text-xl mb-2.5">Defeat Gym Anxiety</h3>
+      <p class="text-ink/60 leading-relaxed text-[15px]">SweatPet gives you a reason to walk in that has nothing to do with how you look doing it. Low-pressure quests ease you into the machines, the free weights, even the group classes — one small errand at a time.</p>
+    </div>
+
+    <div class="bg-card rounded-3xl p-7 border border-ink/5 hover:border-gold/40 hover:-translate-y-1 transition-all">
+      <div class="w-12 h-12 rounded-2xl bg-gold/15 flex items-center justify-center mb-5">
+        <i data-lucide="flame" class="w-5.5 h-5.5 text-gold"></i>
+      </div>
+      <h3 class="font-display font-600 text-xl mb-2.5">Streak Protection</h3>
+      <p class="text-ink/60 leading-relaxed text-[15px]">Midterms happen. SweatPet's grace-period system forgives a missed day without wiping your progress, so one brutal week doesn't undo a month of showing up.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section class="max-w-5xl mx-auto px-5 sm:px-8 pb-24 sm:pb-32">
+  <div class="relative bg-purple rounded-[2.5rem] px-8 py-16 sm:py-20 text-center overflow-hidden">
+    <div class="pointer-events-none absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-blob anim-float"></div>
+    <div class="pointer-events-none absolute -bottom-20 -left-10 w-56 h-56 bg-white/10 rounded-blob anim-float-slow"></div>
+    <h2 class="relative font-display font-700 text-3xl sm:text-4xl text-white leading-tight max-w-lg mx-auto">
+      Ready to keep SweatPet alive?
+    </h2>
+    <p class="relative text-white/70 mt-4 max-w-sm mx-auto">The application takes about ninety seconds. We read every answer.</p>
+    <button onclick="openModal()" class="relative mt-8 inline-flex items-center gap-2 bg-white text-purple font-bold px-8 py-4 rounded-full hover:bg-bg transition-colors">
+      Apply for the Closed Beta
+      <i data-lucide="arrow-right" class="w-5 h-5"></i>
+    </button>
+  </div>
+</section>
+
+<footer class="border-t border-ink/10 py-10">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-ink/40">
+    <p>An independent student project at Georgia Tech. Not affiliated with the CRC or GT Athletics.</p>
+    <p class="font-mono text-xs">v0.1 · closed beta</p>
+  </div>
+</footer>
+
+<!-- ================= APPLICATION MODAL ================= -->
+<div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center p-4 sm:p-6 bg-ink/60 backdrop-blur-sm">
+  <div class="modal-panel relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl max-h-[92vh] overflow-y-auto">
+
+    <button onclick="closeModal()" aria-label="Close application form" class="absolute right-5 top-5 w-9 h-9 rounded-full bg-ink/5 hover:bg-ink/10 flex items-center justify-center transition-colors">
+      <i data-lucide="x" class="w-4 h-4"></i>
+    </button>
+
+    <div class="p-7 sm:p-9">
+
+      <!-- progress dots -->
+      <div id="progressWrap" class="flex items-center gap-2 mb-8">
+        <div class="progress-dot h-1.5 rounded-full bg-purple flex-1 transition-all" data-step="1"></div>
+        <div class="progress-dot h-1.5 rounded-full bg-ink/10 flex-1 transition-all" data-step="2"></div>
+        <div class="progress-dot h-1.5 rounded-full bg-ink/10 flex-1 transition-all" data-step="3"></div>
+      </div>
+
+      <!-- STEP 1: email -->
+      <div class="app-step" data-step="1">
+        <p class="font-mono text-xs uppercase tracking-widest text-purple mb-2">Step 1 of 3</p>
+        <h3 class="font-display font-700 text-2xl leading-tight mb-2">Let's start with your school email</h3>
+        <p class="text-ink/50 text-sm mb-6">We'll only email you if you're selected. No spam, no newsletter, ever.</p>
+        <input id="inputEmail" type="email" inputmode="email" placeholder="you@gatech.edu"
+          class="w-full bg-purplesoft/60 border-2 border-transparent focus:border-purple rounded-2xl px-4 py-3.5 font-body text-base placeholder:text-ink/30 transition-colors" />
+        <p id="emailError" class="hidden text-coral text-xs font-medium mt-2">Please use a valid .edu school email.</p>
+      </div>
+
+      <!-- STEP 2: q1 -->
+      <div class="app-step hidden" data-step="2">
+        <p class="font-mono text-xs uppercase tracking-widest text-purple mb-2">Step 2 of 3</p>
+        <h3 class="font-display font-700 text-2xl leading-tight mb-2">Be honest with us</h3>
+        <p class="text-ink/50 text-sm mb-6">What's the biggest thing that stops you from going to the CRC consistently right now?</p>
+        <textarea id="inputQ1" rows="4" placeholder="e.g. I don't know how to use half the machines and I don't want to look dumb figuring it out in front of people"
+          class="w-full bg-purplesoft/60 border-2 border-transparent focus:border-purple rounded-2xl px-4 py-3.5 font-body text-base placeholder:text-ink/30 transition-colors resize-none"></textarea>
+        <p id="q1Error" class="hidden text-coral text-xs font-medium mt-2">A few honest words — at least 10 characters.</p>
+      </div>
+
+      <!-- STEP 3: q2 -->
+      <div class="app-step hidden" data-step="3">
+        <p class="font-mono text-xs uppercase tracking-widest text-purple mb-2">Step 3 of 3</p>
+        <h3 class="font-display font-700 text-2xl leading-tight mb-2">One more thing</h3>
+        <p class="text-ink/50 text-sm mb-6">On a scale of 1–5, how intimidated do you feel walking into a crowded gym?</p>
+
+        <div class="grid grid-cols-5 gap-2" id="scaleGroup">
+          <button type="button" data-val="1" onclick="selectScale(1)" class="scale-btn chip-scale flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-purplesoft/60 border-2 border-transparent">
+            <span class="font-display font-700 text-lg">1</span>
+          </button>
+          <button type="button" data-val="2" onclick="selectScale(2)" class="scale-btn chip-scale flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-purplesoft/60 border-2 border-transparent">
+            <span class="font-display font-700 text-lg">2</span>
+          </button>
+          <button type="button" data-val="3" onclick="selectScale(3)" class="scale-btn chip-scale flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-purplesoft/60 border-2 border-transparent">
+            <span class="font-display font-700 text-lg">3</span>
+          </button>
+          <button type="button" data-val="4" onclick="selectScale(4)" class="scale-btn chip-scale flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-purplesoft/60 border-2 border-transparent">
+            <span class="font-display font-700 text-lg">4</span>
+          </button>
+          <button type="button" data-val="5" onclick="selectScale(5)" class="scale-btn chip-scale flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-purplesoft/60 border-2 border-transparent">
+            <span class="font-display font-700 text-lg">5</span>
+          </button>
+        </div>
+        <div class="flex justify-between mt-2.5 text-[11px] text-ink/40 font-medium px-0.5">
+          <span>Totally chill</span>
+          <span>Turn around & leave</span>
+        </div>
+        <p id="q2Error" class="hidden text-coral text-xs font-medium mt-3">Pick a number from 1 to 5.</p>
+      </div>
+
+      <!-- SUCCESS STATE -->
+      <div class="app-step hidden text-center py-4" data-step="success">
+        <div class="w-16 h-16 rounded-full bg-mint/15 flex items-center justify-center mx-auto mb-5">
+          <i data-lucide="check-circle-2" class="w-8 h-8 text-mint"></i>
+        </div>
+        <h3 class="font-display font-700 text-2xl leading-tight mb-3">Application received.</h3>
+        <p class="text-ink/60 text-[15px] leading-relaxed max-w-xs mx-auto">
+          We are limiting our initial freshman/sophomore cohort to ensure high engagement. We'll reach out to your email if selected.
+        </p>
+        <button onclick="closeModal()" class="mt-7 inline-flex items-center gap-2 bg-ink text-white font-bold px-7 py-3.5 rounded-full hover:bg-purpledark transition-colors">
+          Done
+        </button>
+      </div>
+
+      <!-- nav buttons -->
+      <div id="modalNav" class="flex items-center gap-3 mt-8">
+        <button id="backBtn" onclick="prevStep()" class="hidden items-center gap-1.5 text-ink/50 font-semibold text-sm px-4 py-3 hover:text-ink transition-colors">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
+        </button>
+        <button id="nextBtn" onclick="nextStep()" class="flex-1 inline-flex items-center justify-center gap-2 bg-purple text-white font-bold px-6 py-3.5 rounded-full hover:bg-purpledark transition-colors">
+          Continue
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  /* ---------------- Interactive pet demo ---------------- */
+  const petState = { happiness: 40, hunger: 55, energy: 35, streak: 3, level: 3 };
+  const btn = () => document.getElementById('checkinBtn');
+  const label = () => document.getElementById('checkinLabel');
+
+  function clamp(n) { return Math.max(0, Math.min(100, n)); }
+
+  function renderPetState() {
+    document.getElementById('happyBar').style.width = petState.happiness + '%';
+    document.getElementById('happyPct').textContent = petState.happiness + '%';
+    document.getElementById('hungerBar').style.width = petState.hunger + '%';
+    document.getElementById('hungerPct').textContent = petState.hunger + '%';
+    document.getElementById('energyBar').style.width = petState.energy + '%';
+    document.getElementById('energyPct').textContent = petState.energy + '%';
+    document.getElementById('streakNum').textContent = petState.streak + ' days';
+    document.getElementById('lvlNum').textContent = petState.level;
+  }
+
+  function spawnXpFloat() {
+    const wrap = document.getElementById('checkinBtn').parentElement;
+    const el = document.createElement('span');
+    el.className = 'xp-float text-mint font-bold text-sm';
+    el.textContent = '+15 XP';
+    el.style.left = '50%';
+    el.style.top = '-6px';
+    el.style.transform = 'translateX(-50%)';
+    wrap.style.position = 'relative';
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+
+  function logCheckIn() {
+    if (petState.happiness >= 100 && petState.hunger >= 100 && petState.energy >= 100) return;
+
+    petState.happiness = clamp(petState.happiness + 22);
+    petState.hunger = clamp(petState.hunger + 18);
+    petState.energy = clamp(petState.energy + 20);
+    petState.streak += 1;
+
+    if (petState.happiness >= 100 && petState.hunger >= 100 && petState.energy >= 100) {
+      petState.level += 1;
+    }
+
+    renderPetState();
+    spawnXpFloat();
+
+    const petWrap = document.getElementById('petWrap');
+    petWrap.classList.remove('pet-bounce');
+    void petWrap.offsetWidth;
+    petWrap.classList.add('pet-bounce');
+
+    if (petState.happiness >= 100 && petState.hunger >= 100 && petState.energy >= 100) {
+      label().textContent = 'SweatPet is thriving today!';
+      btn().disabled = true;
+    } else {
+      label().textContent = 'Log a CRC check-in';
+    }
+  }
+
+  renderPetState();
+
+  /* ---------------- Application modal ---------------- */
+  let currentStep = 1;
+  let scaleValue = null;
+  const applications = []; // all submitted applications land here
+
+  function openModal() {
+    window.open('https://docs.google.com/forms/d/e/1FAIpQLSfG_n5AAGtsTqzni4niqh-X17036jLvfA4WuxiJ8gaXKVpSAQ/viewform?usp=publish-editor', '_blank');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.remove('flex');
+    document.body.style.overflow = '';
+    setTimeout(resetForm, 300);
+  }
+
+  function resetForm() {
+    currentStep = 1;
+    scaleValue = null;
+    document.getElementById('inputEmail').value = '';
+    document.getElementById('inputQ1').value = '';
+    document.querySelectorAll('.scale-btn').forEach(b => {
+      b.classList.remove('bg-purple', 'text-white', 'border-purple');
+      b.classList.add('bg-purplesoft/60');
+    });
+    ['emailError', 'q1Error', 'q2Error'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    goToStep(1);
+  }
+
+  function goToStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.app-step').forEach(el => {
+      el.classList.toggle('hidden', el.dataset.step != step);
+    });
+
+    const nav = document.getElementById('modalNav');
+    const backBtn = document.getElementById('backBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    if (step === 'success') {
+      nav.classList.add('hidden');
+      document.getElementById('progressWrap').classList.add('hidden');
+      return;
+    }
+    nav.classList.remove('hidden');
+    document.getElementById('progressWrap').classList.remove('hidden');
+    nav.classList.add('flex');
+
+    backBtn.classList.toggle('hidden', step === 1);
+    backBtn.classList.toggle('flex', step !== 1);
+    nextBtn.innerHTML = step === 3
+      ? 'Submit Application <i data-lucide="check" class="w-4 h-4"></i>'
+      : 'Continue <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+
+    document.querySelectorAll('.progress-dot').forEach(dot => {
+      const dotStep = parseInt(dot.dataset.step);
+      dot.classList.toggle('bg-purple', dotStep <= step);
+      dot.classList.toggle('bg-ink/10', dotStep > step);
+    });
+
+    lucide.createIcons();
+  }
+
+  function isValidSchoolEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.edu$/i.test(email.trim());
+  }
+
+  function selectScale(val) {
+    scaleValue = val;
+    document.querySelectorAll('.scale-btn').forEach(b => {
+      const active = parseInt(b.dataset.val) === val;
+      b.classList.toggle('bg-purple', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('border-purple', active);
+      b.classList.toggle('bg-purplesoft/60', !active);
+    });
+    document.getElementById('q2Error').classList.add('hidden');
+  }
+
+  function nextStep() {
+    if (currentStep === 1) {
+      const email = document.getElementById('inputEmail').value;
+      if (!isValidSchoolEmail(email)) {
+        document.getElementById('emailError').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('emailError').classList.add('hidden');
+      goToStep(2);
+    } else if (currentStep === 2) {
+      const q1 = document.getElementById('inputQ1').value.trim();
+      if (q1.length < 10) {
+        document.getElementById('q1Error').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('q1Error').classList.add('hidden');
+      goToStep(3);
+    } else if (currentStep === 3) {
+      if (!scaleValue) {
+        document.getElementById('q2Error').classList.remove('hidden');
+        return;
+      }
+      submitApplication();
+    }
+  }
+
+  function prevStep() {
+    if (currentStep > 1) goToStep(currentStep - 1);
+  }
+
+  function submitApplication() {
+    const entry = {
+      email: document.getElementById('inputEmail').value.trim(),
+      biggestBlocker: document.getElementById('inputQ1').value.trim(),
+      intimidationScale: scaleValue,
+      submittedAt: new Date().toISOString(),
+    };
+
+    applications.push(entry);
+    console.log('New SweatPet beta application:', entry);
+    console.table(applications);
+
+    goToStep('success');
+    lucide.createIcons();
+  }
+
+  // close on backdrop click / escape key
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('modalOverlay').classList.contains('hidden')) closeModal();
+  });
+</script>
+
+</body>
+</html>
